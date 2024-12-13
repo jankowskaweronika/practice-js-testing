@@ -1,109 +1,89 @@
-export default class DB {
-    constructor() {
-        this._rows = [];
-    }
+import DB from './DB';
 
-    insert(data) {
-        return new Promise((resolve, reject) => {
-            if(data.id) {
-                if(typeof data.id !== 'number') {
-                    this.async(reject,'ID can be only number!');
-                    return null; // stop function
-                } else if(this._rows.some(item => item.id === data.id)) {
-                    this.async(reject, 'ID can\'t be duplicated!');
-                    return null; // stop function
-                }
-            }
-
-            this.async(() => {
-                if(!data.id) {
-                    data.id = this._rows.reduce((acc, item) => {
-                        return acc <= item.id ? item.id + 1 : acc;
-                    }, 1);
-                }
-
-                this._rows.push(data);
-                resolve(data)
-            }); 
+describe('.insert()', () => {
+    it('return 1 when insert one item', async () => {
+        const db = new DB();
+        await db.insert({
+            id: 1,
+            name: 'John',
         });
-    }
-
-    select(id) {
-        return new Promise((resolve, reject) => {
-            this.async(() => {
-                const [row = null] = this._rows.filter(item => item.id === id);
-                if(row) {
-                    resolve(row);
-                } else {
-                    reject('ID not found');
-                }
+        const rows = await db.getRows();
+        expect(rows.length).toBe(1);
+    });
+    it('reject when insert id is not a number', async () => {
+        expect.assertions(1);
+        const db = new DB();
+        try {
+            await db.insert({
+                id: 'xyz',
+                name: 'John',
             });
-        });
-    }
-
-    remove(id) {
-        return new Promise((resolve, reject) => {
-            this.async(() => {
-                const lengthBeforeFilter = this._rows.length;
-                this._rows = this._rows.filter(item => item.id !== id);
-                const lengthAfterFilter = this._rows.length;
-                
-                if(lengthBeforeFilter === lengthAfterFilter) {
-                    reject('Item not exist!');
-                } else {
-                    resolve('Item was remove!');
-                }
+        } catch (e) {
+            expect(e).toBe('ID can be only number!');
+        }
+    });
+    it('reject when insert id is duplicated', async () => {
+        expect.assertions(1);
+        const db = new DB();
+        try {
+            await db.insert({
+                id: 1,
+                name: 'John',
             });
-        });
-    }
-
-    update(data) {
-        return new Promise((resolve, reject) => {
-            if(!data.id) {
-                this.async(reject, 'ID have to be set!');
-            } else {
-                this.async(() => {
-                    let updated = null;
-                    this._rows = this._rows.map(item => {
-                        if(item.id === data.id) {
-                            updated = data
-                            return updated;
-                        }
-            
-                        return item;
-                    });
-
-                    if(updated) {
-                        resolve(updated);
-                    } else {
-                        reject('ID not found!');   
-                    }
-                });
-            }
-        });
-    }
-
-    truncate() {
-        return new Promise(resolve => {
-            this.async(() => {
-                this._rows = [];
-                resolve(true);
+            await db.insert({
+                id: 1,
+                name: 'James',
             });
-            
-        })
-    }
+        } catch (e) {
+            expect(e).toBe("ID can't be duplicated!");
+        }
+    });
+    it('inserted data is correct', async () => {
+        const data = { id: 1, name: 'John' };
+        const db = new DB();
+        const insertedData = await db.insert(data);
+        expect(insertedData).toEqual(data);
+    });
+    it('should reject removal of data with a non-existent ID', async () => {
+        expect.assertions(1);
+        const db = new DB();
+        try {
+            await db.remove(1);
+        } catch (e) {
+            expect(e).toBe('Item not exist!');
+        }
+    });
+    it('should update data with a matching ID', async () => {
+        const data = { id: 1, name: 'John Doe' };
+        const db = new DB();
+        await db.insert(data);
 
-    getRows() {
-        return new Promise(resolve => {
-            this.async(() => {
-                resolve(this._rows);
-            });
-        })
-    }
+        const updatedData = { id: 1, name: 'Jane Doe' };
+        const result = await db.update(updatedData);
+        const rows = await db.getRows();
 
-    async(callback, ...params) {
-        setTimeout(() => {
-            callback(...params);
-        }, Math.random() * 100);
-    }
-}
+        expect(result).toEqual(updatedData);
+        expect(rows[0]).toEqual(updatedData);
+    });
+    it('should reject update of data with a non-existent ID', async () => {
+        expect.assertions(1);
+        const data = { id: 1, name: 'John Doe' };
+        const db = new DB();
+        try {
+            await db.update(data);
+        } catch (e) {
+            expect(e).toBe('ID not found!');
+        }
+    });
+
+    it('should reject update of data without an ID', async () => {
+        expect.assertions(1);
+        const data = { name: 'John Doe' };
+        const db = new DB();
+        try {
+            await db.update(data);
+        } catch (e) {
+            expect(e).toBe('ID have to be set!');
+        }
+    });
+});
